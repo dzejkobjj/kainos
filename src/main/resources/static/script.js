@@ -1,6 +1,11 @@
-var from, to, chart, fromPicker, toPicker, maxDate, currentData, numberOfTrendLines;
+var from, to, chart, fromPicker, toPicker, maxDate, currentData, numberOfTrendLines, minDate;
 var dateFormat = "yy-mm-dd";
 
+var trendDiff={
+    bitcoin:[50,100],
+    ethereum:[25,50],
+    litcoin:[10,25]
+}
 $(document).ready(function() {
     var date = new Date();
     date.setDate(date.getDate() - 1);
@@ -8,6 +13,7 @@ $(document).ready(function() {
     maxDate = to;
     date.setMonth(date.getMonth() - 1);
     from = formatDate(date);
+    getMinDate();
     initialize();
     getDataAndMakeChart(from,to);
 
@@ -34,6 +40,20 @@ function getDataAndMakeChart(from, to) {
             currentData = response;
             makeNewChart(response);
             return response;
+        },
+        error: function () {
+            console.log("error");
+        }});
+}
+
+function getMinDate() {
+    $.ajax({
+        url:"/api/min",
+        type: "get",
+        dataType : "json",
+        success :function (response) {
+            minDate = response[0].minDate;
+            console.log(minDate);
         },
         error: function () {
             console.log("error");
@@ -70,7 +90,7 @@ function makeNewChart(data) {
 
         tooltip: {
             headerFormat: '<b>{series.name}</b><br />',
-            pointFormat: 'Date = {point.x}, Value = {point.y}'
+            pointFormat: 'Date = {data.dates[point.x]}, Value = {point.y}'
         },
 
         series: [data.bitcoin, data.ethereum, data.litcoin]
@@ -79,10 +99,12 @@ function makeNewChart(data) {
     calculateTrends();
 }
 
-function addTrendLine(sourceData, offset) {
+function addTrendLine(sourceData, offset, color) {
     chart.addSeries({
         enableMouseTracking:false,
+        showInLegend: false,
         pointStart: offset,
+        color: color,
         type: 'line',
         marker: { enabled: false },
         /* function returns data for trend-line */
@@ -97,6 +119,7 @@ function initialize() {
     fromPicker = $( "#fromPicker" )
             .datepicker({
                 dateFormat: dateFormat,
+                minDate: minDate,
                 defaultDate: from,
                 changeMonth: true,
                 numberOfMonths: 1,
@@ -157,6 +180,7 @@ function fitOneDimensionalData(source_data) {
 
 //dodajemy linie trendu w zaleznosci od ilosci wybranych dni, jesli 30 lub wiecej to obliczamy miesieczny trend, jesli mniej to tygodniowy
 function calculateTrends() {
+    $("#trendArrowDiv").empty();
     if ($("#showTrendline").is(':checked')) {
         var oneDay = 24*60*60*1000;
         var splited = from.split("-");
@@ -174,34 +198,78 @@ function calculateTrends() {
     }else{
         if(numberOfTrendLines > 0){
             var k = 2 + numberOfTrendLines;
-            for(var i=3; i<=k;i++){
+            for(var i=k; i>=3;i--){
+                console.log(i);
+                console.log(chart.series[i]);
                 chart.series[i].remove();
             }
+            numberOfTrendLines = 0;
         }
     }
 }
 
+//uznajemy ze jesli w roznica w cenie btc w przeciagu miesiaca wynosi 100 usd to jest trend rosnacy/malejacy, 50 usd dla tygodnia
 function addTrendlinesDependentOnDays(days, diffDays) {
     numberOfTrendLines = Math.round(diffDays / days);
     var btcData = currentData.bitcoin.data;
-
+    var color;
+    if(days>=30)
+        picker = 1;
+    else
+        picker = 0;
     var k=1;
     for (var i = 0; i < numberOfTrendLines;i++) {
-        addTrendLine(btcData.slice(i*days, k * days), i*days);
+        var temp = btcData.slice(i*days, k * days)
+        if(temp[0] - temp[temp.length-1] > trendDiff.bitcoin[picker]){
+            color = 'red';
+            addTrendLine(temp, i*days, color);
+        }
+        else if(temp[temp.length-1] - temp[0] > trendDiff.bitcoin[picker]){
+            color = 'green';
+            addTrendLine(temp, i*days, color);
+        }
+        addTrendArrowBox(temp, i*days, k*days, picker);
         k++;
     }
 }
 
-// function chunkArray(myArray, chunk_size){
-//     var index = 0;
-//     var arrayLength = myArray.length;
-//     var tempArray = [];
-//
-//     for (index = 0; index < arrayLength; index += chunk_size) {
-//         myChunk = myArray.slice(index, index+chunk_size);
-//         // Do something if you want with the group
-//         tempArray.push(myChunk);
-//     }
-//
-//     return tempArray;
-// }
+function addTrendArrowBox(btcData, startIndex, stopIndex, picker) {
+    var mother = $("#trendArrowDiv");
+    var box, img, txt, header;
+    if(btcData[0] - btcData[btcData.length-1] > trendDiff.bitcoin[picker]){
+        var box = $('<div>').attr("class", "col");
+        var img = $('<img>').attr("src", "arrowdownred.svg").attr("width", "100").attr("height", "100");
+        var txt = $('<div>').append(checkOtherCurrencyGrowth(true, startIndex, stopIndex, picker) + "<br>" + checkOtherCurrencyGrowth(false, startIndex, stopIndex, picker));
+        header = $('<b>').append("BTC is going down - " + currentData.dates[stopIndex]);
+        mother.append(box.append(img, header, txt));
+
+    }
+    else if(btcData[btcData.length-1] - btcData[0] > trendDiff.bitcoin[picker]){
+        var box = $('<div>').attr("class", "col arrow-box");
+        var img = $('<img>').attr("src", "arrowupgreen.svg").attr("width", "100").attr("height", "100");
+        var txt = $('<div>').append(checkOtherCurrencyGrowth(true, startIndex, stopIndex, picker) + "<br>" + checkOtherCurrencyGrowth(false, startIndex, stopIndex, picker));
+
+        header = $('<b>').append("BTC is going up - " + currentData.dates[stopIndex]);
+        mother.append(box.append(img, header, txt));
+    }
+
+}
+
+function checkOtherCurrencyGrowth(isEth, startIndex, stopIndex, picker) {
+    var i = 0;
+    if(isEth){
+        if(currentData.ethereum.data[startIndex] - currentData.ethereum.data[stopIndex] > trendDiff.ethereum[picker])
+            return "Ethereum was going down at that time";
+        else if (currentData.ethereum.data[stopIndex] - currentData.ethereum.data[startIndex] > trendDiff.ethereum[picker])
+            return "Ethereum was going up at that time";
+        else return "";
+    }else{
+        if(currentData.litcoin.data[startIndex] - currentData.litcoin.data[stopIndex] > trendDiff.ethereum[picker])
+            return "Litcoin was going down at that time";
+        else if (currentData.litcoin.data[stopIndex] - currentData.litcoin.data[startIndex] > trendDiff.ethereum[picker])
+            return "Litcoin was going up at that time";
+        else return "";
+    }
+    
+}
+// TODO strona sie rozjezdza gdy mamy za duzo szczalek trendu

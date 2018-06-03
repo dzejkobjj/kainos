@@ -2,6 +2,7 @@ package pl.jakubmichalowski.kainos;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import pl.jakubmichalowski.kainos.utilities.DataGenerator;
 
 import java.io.IOException;
@@ -11,6 +12,7 @@ import java.io.IOException;
  * All rights reserved.
  */
 @Configuration
+@EnableScheduling
 public class AppConfig {
 
     @Bean

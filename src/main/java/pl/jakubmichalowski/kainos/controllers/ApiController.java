@@ -2,6 +2,9 @@ package pl.jakubmichalowski.kainos.controllers;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.util.JSONPObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -52,6 +55,17 @@ public class ApiController {
 
 
         return result;
+    }
+
+    @GetMapping("/api/min")
+    public ArrayNode getMinDate(){
+        ObjectMapper mapper = new ObjectMapper();
+
+        ArrayNode arrayNode = mapper.createArrayNode();
+        ObjectNode objectNode1 = mapper.createObjectNode();
+        objectNode1.put("minDate", dataGenerator.getMinDate());
+        arrayNode.add(objectNode1);
+        return arrayNode;
     }
 
     @Autowired

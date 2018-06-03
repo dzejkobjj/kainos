@@ -2,6 +2,7 @@ package pl.jakubmichalowski.kainos.utilities;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
 import pl.jakubmichalowski.kainos.exceptions.BadDateFormatException;
@@ -31,6 +32,7 @@ public class DataGenerator {
     private List<Price> bitcoin;
     private List<Price> ethereum;
     private List<Price> litcoin;
+    private DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
 
     public DataGenerator(){
@@ -38,7 +40,7 @@ public class DataGenerator {
     }
 
     public FormattedData getData(String from, String to){
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
         LocalDate fromDate, toDate;
 
         try {
@@ -90,6 +92,7 @@ public class DataGenerator {
         return fd;
     }
 
+    @Scheduled(cron = "0 0 01 * * ?")
     public void getDataFromServer() {
         RestTemplate restTemplate = new RestTemplate();
         String result = restTemplate.getForObject(ApiUrl.bitcoinUrl, String.class);
@@ -117,6 +120,10 @@ public class DataGenerator {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public String getMinDate(){
+        return bitcoin.get(bitcoin.size()-1).getTime().toLocalDate().format(formatter);
     }
 
 
